@@ -100,7 +100,7 @@ class TensorImpl<Tensor<DataType, LocaleProcess, Allocator>> {
                            bool idx_include_halo=false) const {
     auto real_idx = idx;
     if (!idx_include_halo) {
-      real_idx = real_idx + m_tensor->get_distribution().get_overlap();
+      real_idx = real_idx + m_tensor->get_distribution().get_head_overlap(); // TODO: check
     }
     return get_offset(
         real_idx, get_local_real_shape(), m_tensor->get_pitch());
@@ -120,8 +120,8 @@ class TensorImpl<Tensor<DataType, LocaleProcess, Allocator>> {
     const auto &dist = m_tensor->get_distribution();
     m_local_real_shape = Shape(m_tensor->get_num_dims(), 0);
     for (int i = 0; i < m_tensor->get_num_dims(); ++i) {
-      m_local_real_shape[i] = get_local_shape()[i] +
-          dist.get_overlap(i) * 2;
+      m_local_real_shape[i] = get_local_shape()[i] + dist.get_head_overlap(i) +
+                              dist.get_tail_overlap(i);
     }
   }
   TensorType *m_tensor;

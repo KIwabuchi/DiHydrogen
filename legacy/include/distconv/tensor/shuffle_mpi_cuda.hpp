@@ -27,8 +27,10 @@ class TensorMPICUDAShuffler {
       m_dst_strides(dst_tensor.get_strides()),
       m_src_locale_shape(src_tensor.get_locale_shape()),
       m_dst_locale_shape(dst_tensor.get_locale_shape()),
-      m_src_overlap(src_tensor.get_overlap()),
-      m_dst_overlap(dst_tensor.get_overlap()),
+      m_src_head_overlap(src_tensor.get_head_overlap()),
+      m_src_tail_overlap(src_tensor.get_tail_overlap()),
+      m_dst_head_overlap(dst_tensor.get_head_overlap()),
+      m_dst_tail_overlap(dst_tensor.get_tail_overlap()),
       m_loc(src_tensor.get_locale()),
       m_src_split_root(src_tensor.is_split_root()),
       m_dst_split_root(dst_tensor.is_split_root()),
@@ -94,8 +96,10 @@ class TensorMPICUDAShuffler {
   const IndexVector m_dst_strides;
   const Shape m_src_locale_shape;
   const Shape m_dst_locale_shape;
-  const IntVector m_src_overlap;
-  const IntVector m_dst_overlap;
+  const IntVector m_src_head_overlap;
+  const IntVector m_src_tail_overlap;
+  const IntVector m_dst_head_overlap;
+  const IntVector m_dst_tail_overlap;
   const LocaleMPI &m_loc;
   const bool m_src_split_root;
   const bool m_dst_split_root;
@@ -441,19 +445,35 @@ class TensorMPICUDAShuffler {
     }
   }
 
-  const IntVector &get_src_overlap(bool is_forward) const {
+  const IntVector &get_src_head_overlap(bool is_forward) const {
     if (is_forward) {
-      return m_src_overlap;
+      return m_src_head_overlap;
     } else {
-      return m_dst_overlap;
+      return m_dst_head_overlap;
     }
   }
 
-  const IntVector &get_dst_overlap(bool is_forward) const {
+  const IntVector &get_src_tail_overlap(bool is_forward) const {
     if (is_forward) {
-      return m_dst_overlap;
+      return m_src_tail_overlap;
     } else {
-      return m_src_overlap;
+      return m_dst_tail_overlap;
+    }
+  }
+
+  const IntVector &get_dst_head_overlap(bool is_forward) const {
+    if (is_forward) {
+      return m_dst_head_overlap;
+    } else {
+      return m_src_head_overlap;
+    }
+  }
+
+  const IntVector &get_dst_tail_overlap(bool is_forward) const {
+    if (is_forward) {
+      return m_dst_tail_overlap;
+    } else {
+      return m_src_tail_overlap;
     }
   }
 

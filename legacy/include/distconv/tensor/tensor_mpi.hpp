@@ -210,7 +210,7 @@ class TensorImpl<Tensor<DataType, LocaleMPI, Allocator>> {
   Shape get_max_local_real_shape() const {
     auto s = get_max_local_shape();
     for (int i = 0; i < m_tensor->get_num_dims(); ++i) {
-      s[i] += m_tensor->get_halo_width(i) * 2;
+      s[i] += m_tensor->get_head_halo_width(i) + m_tensor->get_tail_halo_width(i);
     }
     return s;
   }
@@ -269,7 +269,7 @@ class TensorImpl<Tensor<DataType, LocaleMPI, Allocator>> {
                            bool idx_include_halo) const {
     auto real_idx = idx;
     if (!idx_include_halo) {
-      real_idx = real_idx + m_tensor->get_halo_width();
+      real_idx = real_idx + m_tensor->get_head_halo_width(); // TODO: check
     }
     return get_offset(
         real_idx, get_local_real_shape(),
@@ -452,7 +452,7 @@ class TensorImpl<Tensor<DataType, LocaleMPI, Allocator>> {
       // 0, which can happen.
       if (m_tensor->m_requested_local_shape[i]) {
         proc_chunk_size = m_tensor->m_requested_local_shape[i];
-        real_size_extra = dist.get_overlap(i) * 2;
+        real_size_extra = dist.get_head_overlap(i) + dist.get_tail_overlap(i);
         util::MPIPrintStreamDebug()
             << "shape requested: " << proc_chunk_size;
       } else if (dist.is_distributed(i)) {
@@ -487,12 +487,13 @@ class TensorImpl<Tensor<DataType, LocaleMPI, Allocator>> {
           proc_chunk_size += tensor_shape[i] % bsize;
         }
         // Add halo regions
-        real_size_extra = dist.get_overlap(i) * 2;
+        real_size_extra = dist.get_head_overlap(i) + dist.get_tail_overlap(i);
       } else {
         util::MPIPrintStreamDebug()
             << "no partitioning on dimension " << i;
         proc_chunk_size = tensor_shape[i];
-        dist.set_overlap(i, 0);
+        dist.set_head_overlap(i, 0);
+        dist.set_tail_overlap(i, 0);
       }
       m_local_shape[i] = proc_chunk_size;
       m_local_real_shape[i] = proc_chunk_size + real_size_extra;
@@ -591,7 +592,8 @@ struct ViewFunctor<Tensor<DataType, LocaleProcess, Allocator>,
 
     // MPI local region may have halo
     auto dist = t_proc.get_distribution();
-    dist.copy_overlap(t_mpi.get_distribution());
+    dist.copy_head_overlap(t_mpi.get_distribution());
+    dist.copy_tail_overlap(t_mpi.get_distribution());
     t_proc.set_distribution(dist);
     assert_eq(t_mpi.get_local_real_shape(), t_proc.get_local_real_shape());
     t_proc.set_view(t_mpi.m_data);
@@ -680,14 +682,14 @@ struct CopyFunctor<Tensor<DataType, LocaleProcess, AllocatorProc>,
                               const Shape &local_shape,
                               const IndexVector &global_offset,
                               const Shape &global_shape,
-                              const IndexVector &overlap,
-                              size_t pitch) {
-    auto local_real_shape = local_shape + overlap * 2;
+                              const IndexVector &head_overlap,
+                              const IndexVector &tail_overlap, size_t pitch) {
+    auto local_real_shape = local_shape + head_overlap + tail_overlap;
     // copy the MPI local buffer to the destination tensor
     for (auto it = local_shape.index_begin();
          it != local_shape.index_end();) {
       auto src_offset = get_offset(
-          *it + overlap, local_real_shape, pitch);
+          *it + head_overlap, local_real_shape, pitch); // check
       auto dest_offset = get_offset(global_offset + *it,
                                        global_shape);
       memcpy(dest + dest_offset,
@@ -779,9 +781,10 @@ struct CopyFunctor<Tensor<DataType, LocaleProcess, AllocatorProc>,
                tag, t_mpi.m_locale.get_comm(), MPI_STATUS_IGNORE);
     }
     src_buf = m_buf;
-    const auto &overlap = t_mpi.get_halo_width();
-    copy_into_local_buffer(t_proc.get_buffer(), src_buf, shape,
-                           global_offset, t_mpi.get_shape(), overlap, pitch);
+    const auto &head_overlap = t_mpi.get_head_halo_width();
+    const auto &tail_overlap = t_mpi.get_tail_halo_width();
+    copy_into_local_buffer(t_proc.get_buffer(), src_buf, shape, global_offset,
+                           t_mpi.get_shape(), head_overlap, tail_overlap, pitch);
   }
 
   int operator()(TensorProcType &t_proc, const TensorMPIType &t_mpi,
@@ -939,7 +942,7 @@ int CopyByShuffle(Tensor<DataType, LocaleMPI, AllocDest> &t_dest,
     find_owning_process(t_dest_host, global_idx, target_rank_idx, target_local_idx);
     int target_rank = get_offset(target_rank_idx, loc_shape);
     auto target_local_idx_with_halo = target_local_idx +
-        t_dest_host.get_halo_width();
+        t_dest_host.get_head_halo_width(); // TODO: check
     auto remote_shape = t_dest_host.get_remote_real_shape(target_rank_idx);
     index_t target_offset = get_offset(target_local_idx_with_halo, remote_shape,
                                        pitch_sizes[target_rank]) * sizeof(DataType);
@@ -1010,9 +1013,10 @@ struct CopyLocalFunctor {
     assert_eq(nd, t_dst.get_num_dims());
     assert_always(nd >= 2);
     auto tr_shape = local_shape;
-    if (t_src.get_halo_width(0) == 0 && t_src.get_halo_width(1) == 0 &&
-        t_dst.get_halo_width(0) == 0 && t_dst.get_halo_width(1) == 0 &&
-        nd >= 3) {
+    if (t_src.get_tail_halo_width(0) == 0 &&
+        t_src.get_tail_halo_width(1) == 0 &&
+        t_dst.get_head_halo_width(0) == 0 &&
+        t_dst.get_head_halo_width(1) == 0 && nd >= 3) {
       return copy_opt(t_dst, t_src, stream);
     }
     // Use the 2D copy feature of Memory for the first 2 dimensions
@@ -1021,15 +1025,13 @@ struct CopyLocalFunctor {
     for (auto it = tr_shape.index_begin(); it != tr_shape.index_end();
          ++it) {
       Copy(t_dst.get_data(), t_src.get_data(),
-           local_shape[0] * sizeof(DataType),
-           local_shape[1],
-           (t_dst.get_local_offset(*it) + t_dst.get_halo_width(0))
-           * sizeof(DataType),
-           t_dst.get_halo_width(1),
-           (t_src.get_local_offset(*it) + t_src.get_halo_width(0))
-           * sizeof(DataType),
-           t_src.get_halo_width(1),
-           stream);
+           local_shape[0] * sizeof(DataType), local_shape[1],
+           (t_dst.get_local_offset(*it) + t_dst.get_head_halo_width(0)) *
+               sizeof(DataType),
+           t_dst.get_head_halo_width(1),
+           (t_src.get_local_offset(*it) + t_src.get_tail_halo_width(0)) *
+               sizeof(DataType),
+           t_src.get_tail_halo_width(1), stream);
     }
     return 0;
   }

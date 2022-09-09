@@ -659,7 +659,9 @@ void TraverseHalo(Tensor &tensor, int dim,
                                            typename Tensor::data_type,
                                            typename Tensor::const_data_type>;
   const int num_dims = tensor.get_num_dims();
-  int available_halo_width = tensor.get_halo_width(dim);
+  int available_halo_width = (side == Side::LHS)
+                              ? tensor.get_head_halo_width(dim)
+                              : tensor.get_tail_halo_width(dim);
   assert_always(halo_width <= available_halo_width);
   if (inner) {
     assert_always(tensor.get_local_shape()[dim] >= (size_t)halo_width);
@@ -702,7 +704,9 @@ void TraverseHalo(Tensor &tensor, int dim,
                   bool inner, OpType op,
                   cudaStream_t s) {
   TraverseHalo(tensor, dim, side,
-               tensor.get_distribution().get_overlap()[dim],
+               (side == Side::LHS)
+               ? tensor.get_distribution().get_head_overlap()[dim]
+               : tensor.get_distribution().get_tail_overlap()[dim],
                inner, op, s);
   return;
 }

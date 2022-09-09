@@ -35,11 +35,10 @@ int test_copy_shuffle(const Array<ND> &shape,
   int *buf = t_src.get_buffer();
   assert_always(buf || t_src.get_local_shape().is_empty());
 
-  init_tensor<ND><<<4, 4>>>(buf,
-                            t_src.get_local_shape(),
-                            dist_src.get_overlap(),
-                            t_src.get_pitch(),
-                            t_src.get_shape(),
+  init_tensor<ND><<<4, 4>>>(buf, t_src.get_local_shape(),
+                            dist_src.get_head_overlap(),
+                            dist_src.get_tail_overlap(),
+                            t_src.get_pitch(), t_src.get_shape(),
                             t_src.get_global_index());
 
   cudaDeviceSynchronize();
@@ -62,7 +61,8 @@ int test_copy_shuffle(const Array<ND> &shape,
 
   check_tensor<ND><<<1, 1>>>(t_dest.get_const_buffer(),
                              t_dest.get_local_shape(),
-                             dist_dest.get_overlap(),
+                             dist_dest.get_head_overlap(),
+                             dist_dest.get_tail_overlap(),
                              t_dest.get_pitch(),
                              t_dest.get_shape(),
                              t_dest.get_global_index(),
@@ -109,7 +109,8 @@ int test_copy_shuffle_from_host_to_device(
 
   check_tensor<ND><<<1, 1>>>(t_dest.get_const_buffer(),
                              t_dest.get_local_shape(),
-                             dist_dest.get_overlap(),
+                             dist_dest.get_head_overlap(),
+                             dist_dest.get_tail_overlap(),
                              t_dest.get_pitch(),
                              t_dest.get_shape(),
                              t_dest.get_global_index(),
@@ -139,7 +140,8 @@ int test_copy_shuffle_from_device_to_host(const Array<ND> &shape,
 
   init_tensor<ND><<<4, 4>>>(buf,
                             t_src.get_local_shape(),
-                            dist_src.get_overlap(),
+                            dist_src.get_head_overlap(),
+                            dist_src.get_tail_overlap(),
                             t_src.get_pitch(),
                             t_src.get_shape(),
                             t_src.get_global_index());

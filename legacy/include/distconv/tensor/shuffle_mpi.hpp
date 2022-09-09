@@ -35,8 +35,10 @@ class TensorMPIShuffleHelper {
       m_dst_strides(dst_tensor.get_strides()),
       m_src_locale_shape(src_tensor.get_locale_shape()),
       m_dst_locale_shape(dst_tensor.get_locale_shape()),
-      m_src_overlap(src_tensor.get_overlap()),
-      m_dst_overlap(dst_tensor.get_overlap()),
+      m_src_head_overlap(src_tensor.get_head_overlap()),
+      m_src_tail_overlap(src_tensor.get_tail_overlap()),
+      m_dst_head_overlap(dst_tensor.get_head_overlap()),
+      m_dst_tail_overlap(dst_tensor.get_tail_overlap()),
       m_loc(src_tensor.get_locale()),
       m_src_split_root(src_tensor.is_split_root()),
       m_dst_split_root(dst_tensor.is_split_root()),
@@ -75,8 +77,10 @@ class TensorMPIShuffleHelper {
   const IndexVector m_dst_strides;
   const Shape m_src_locale_shape;
   const Shape m_dst_locale_shape;
-  const IntVector m_src_overlap;
-  const IntVector m_dst_overlap;
+  const IntVector m_src_head_overlap;
+  const IntVector m_src_tail_overlap;
+  const IntVector m_dst_head_overlap;
+  const IntVector m_dst_tail_overlap;
   const LocaleMPI m_loc;
   const bool m_src_split_root;
   const bool m_dst_split_root;
@@ -344,19 +348,35 @@ class TensorMPIShuffleHelper {
     }
   }
 
-  const IntVector &get_src_overlap(bool is_forward) const {
+  const IntVector &get_src_head_overlap(bool is_forward) const {
     if (is_forward) {
-      return m_src_overlap;
+      return m_src_head_overlap;
     } else {
-      return m_dst_overlap;
+      return m_dst_head_overlap;
     }
   }
 
-  const IntVector &get_dst_overlap(bool is_forward) const {
+  const IntVector &get_src_tail_overlap(bool is_forward) const {
     if (is_forward) {
-      return m_dst_overlap;
+      return m_src_tail_overlap;
     } else {
-      return m_src_overlap;
+      return m_dst_tail_overlap;
+    }
+  }
+
+  const IntVector &get_dst_head_overlap(bool is_forward) const {
+    if (is_forward) {
+      return m_dst_head_overlap;
+    } else {
+      return m_src_head_overlap;
+    }
+  }
+
+  const IntVector &get_dst_tail_overlap(bool is_forward) const {
+    if (is_forward) {
+      return m_dst_tail_overlap;
+    } else {
+      return m_src_tail_overlap;
     }
   }
 
@@ -409,7 +429,7 @@ class TensorMPIShuffler<DataType, BaseAllocator> {
                     DataType *src_buf=nullptr,
                     DataType *dst_buf=nullptr):
       m_helper(src_tensor, dst_tensor, src_buf, dst_buf) {
-    assert0(src_tensor.get_overlap().reduce_sum());
+    assert0(src_tensor.get_head_overlap().reduce_sum() && src_tensor.get_tail_overlap().reduce_sum());
     m_fwd_sample_to_spatial = is_sample_to_spatial(src_tensor, dst_tensor);
     m_bwd_sample_to_spatial = is_sample_to_spatial(dst_tensor, src_tensor);
   }
@@ -482,10 +502,10 @@ class TensorMPIShuffler<DataType, BaseAllocator> {
     //assert_always(dst != nullptr);
 
     // No overlap supported for source tensors
-    assert0(m_helper.get_src_overlap(is_forward).reduce_sum());
+    assert0(m_helper.get_src_head_overlap(is_forward).reduce_sum() && m_helper.get_src_tail_overlap(is_forward).reduce_sum());
     // The unpack-opt supports overlaped tensors
     if (!get_sample_to_spatial(is_forward)) {
-      assert_always(m_helper.get_dst_overlap(is_forward).reduce_sum() == 0);
+      assert_always(m_helper.get_dst_head_overlap(is_forward).reduce_sum() == 0 && m_helper.get_dst_tail_overlap(is_forward).reduce_sum() == 0);
     }
 
     const int *rank_limits_fwd = m_helper.get_rank_limits_fwd(is_forward);
@@ -559,12 +579,12 @@ class TensorMPIShuffler<DataType, BaseAllocator> {
             unpack_sample_to_spatial_halo4(
                 dst, m_helper.get_dst_local_shape(is_forward),
                 m_helper.get_dst_strides(is_forward),
-                recv_buf.get(), m_helper.get_dst_overlap(is_forward));
+                recv_buf.get(), m_helper.get_dst_head_overlap(is_forward), m_helper.get_dst_tail_overlap(is_forward));
           } else {
             unpack_sample_to_spatial_halo5(
                 dst, m_helper.get_dst_local_shape(is_forward),
                 m_helper.get_dst_strides(is_forward),
-                recv_buf.get(), m_helper.get_dst_overlap(is_forward));
+                recv_buf.get(), m_helper.get_dst_head_overlap(is_forward), m_helper.get_dst_tail_overlap(is_forward));
           }
           util::nvtx_pop();
         } else {
@@ -871,7 +891,8 @@ class TensorMPIShuffler<DataType, BaseAllocator> {
                                       const Shape &dst_local_shape,
                                       const IndexVector &dst_strides,
                                       const DataType *buf,
-                                      const IntVector &dst_overlap) {
+                                      const IntVector &dst_head_overlap,
+                                      const IntVector &dst_tail_overlap) {
     constexpr int ND = 4;
     if (dst_local_shape.size() == 0) return;
 
@@ -904,7 +925,8 @@ class TensorMPIShuffler<DataType, BaseAllocator> {
                                       const Shape &dst_local_shape,
                                       const IndexVector &dst_strides,
                                       const DataType *buf,
-                                      const IntVector &dst_overlap) {
+                                      const IntVector &dst_head_overlap,
+                                      const IntVector &dst_tail_overlap) {
     constexpr int ND = 4;
     if (dst_local_shape.size() == 0) return;
 

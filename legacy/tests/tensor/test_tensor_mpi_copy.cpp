@@ -109,9 +109,9 @@ int main(int argc, char *argv[]) {
     util::MPIRootPrintStreamInfo()
         << "Test: copy between same shape and distribution. no mpi involved.";
     auto dist1 = Distribution::make_overlapped_distribution(
-        Shape({proc_x, proc_y, 1}), IntVector({1, 1, 0}));
+        Shape({proc_x, proc_y, 1}), IntVector({1, 1, 0}), IntVector({1, 1, 0}));
     auto dist2 = Distribution::make_overlapped_distribution(
-        Shape({proc_x, proc_y, 1}), IntVector({1, 1, 0}));
+        Shape({proc_x, proc_y, 1}), IntVector({1, 1, 0}), IntVector({1, 1, 0}));
     Shape shape({8, 8, np});
     assert0(test_copy_shuffle<TensorMPI, TensorMPI>(shape, dist1, dist2));
     // reverse
@@ -126,7 +126,7 @@ int main(int argc, char *argv[]) {
         << "Test: local copy with different overlap.";
     // copy between same shape but with and without overlap
     auto dist1 = Distribution::make_overlapped_distribution(
-        Shape({proc_x, proc_y, 1}), IntVector({1, 1, 0}));
+        Shape({proc_x, proc_y, 1}), IntVector({1, 1, 0}), IntVector({1, 1, 0}));
     auto dist2 = Distribution::make_distribution({proc_x, proc_y, 1});
     Shape shape({8, 8, np});
     assert0(test_copy_shuffle<TensorMPI, TensorMPI>(shape, dist1, dist2));
@@ -140,7 +140,7 @@ int main(int argc, char *argv[]) {
     MPI_Barrier(MPI_COMM_WORLD);
     util::MPIRootPrintStreamInfo()
         << "Test: copy from spatial to sample decomposition";
-    auto dist1 = Distribution::make_overlapped_distribution({1, 2, np/2}, {0, 1, 0});
+    auto dist1 = Distribution::make_overlapped_distribution({1, 2, np/2}, {0, 1, 0}, {0, 1, 0});
     auto dist2 = make_sample_distribution(ND, np);
     assert0((test_copy_shuffle<TensorMPI, TensorMPI>(
         Shape({2, 2, np}), dist1, dist2)));
@@ -151,7 +151,7 @@ int main(int argc, char *argv[]) {
     // copy from sample-distributed tensor to spatially-distributed
     // tensor
     auto dist1 = make_sample_distribution(ND, np);
-    auto dist2 = Distribution::make_overlapped_distribution({proc_x, proc_y, 1}, {1, 1, 0});
+    auto dist2 = Distribution::make_overlapped_distribution({proc_x, proc_y, 1}, {1, 1, 0}, {1, 1, 0});
     Shape shape({8, 8, np});
     assert0(test_copy_shuffle<TensorMPI, TensorMPI>(shape, dist1, dist2));
     // reverse

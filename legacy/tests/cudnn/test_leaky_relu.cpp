@@ -68,7 +68,7 @@ int setup(const test::Config &cfg, MPI_Comm comm,
   IntVector overlap({1, 1, 0, 0});
 
   auto dist = tensor::Distribution::make_overlapped_distribution(
-      tensor::Shape({cfg.p_w, cfg.p_h, cfg.p_c, cfg.p_n}), overlap);
+      tensor::Shape({cfg.p_w, cfg.p_h, cfg.p_c, cfg.p_n}), overlap, overlap);
 
   tensor::LocaleMPI loc(comm);
   d.input = Tensor(input_shape, loc, dist);

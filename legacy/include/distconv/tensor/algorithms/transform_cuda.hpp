@@ -345,7 +345,8 @@ Transform(Tensor &tensor, TransformFunc op,
 
   const auto shape = tensor.get_local_shape();
   const auto strides = get_strides(shape,
-                                   tensor.get_overlap(),
+                                   tensor.get_head_overlap(),
+                                   tensor.get_tail_overlap(),
                                    tensor.get_pitch());
 
   util::MPIPrintStreamDebug() << "grid_dim: " << grid_dims.x
@@ -421,7 +422,8 @@ Transform(Tensor1 &tensor1, Tensor2 &tensor2,
 
   const auto shape = tensor1.get_local_shape();
   const auto strides = get_strides(shape,
-                                   tensor1.get_overlap(),
+                                   tensor1.get_head_overlap(),
+                                   tensor1.get_tail_overlap(),
                                    tensor1.get_pitch());
 
   util::MPIPrintStreamDebug() << "grid_dim: " << grid_dims.x
@@ -505,7 +507,8 @@ Transform(Tensor1 &tensor1, Tensor2 &tensor2, Tensor3 &tensor3,
 
   const auto shape = tensor1.get_local_shape();
   const auto strides = get_strides(shape,
-                                   tensor1.get_overlap(),
+                                   tensor1.get_head_overlap(),
+                                   tensor1.get_tail_overlap(),
                                    tensor1.get_pitch());
 
   util::MPIPrintStreamDebug() << "grid_dim: " << grid_dims.x
@@ -593,7 +596,8 @@ Transform(Tensor1 &tensor1, Tensor2 &tensor2, Tensor3 &tensor3,
 
   const auto shape = tensor1.get_local_shape();
   const auto strides = get_strides(shape,
-                                   tensor1.get_overlap(),
+                                   tensor1.get_head_overlap(),
+                                   tensor1.get_tail_overlap(),
                                    tensor1.get_pitch());
 
   util::MPIPrintStreamDebug() << "grid_dim: " << grid_dims.x

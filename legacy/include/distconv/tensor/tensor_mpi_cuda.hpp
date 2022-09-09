@@ -101,8 +101,8 @@ struct CopyLocalFunctor3D<DataType, CUDAAllocator, CUDAAllocator,
     int src_offset = 0;
     int dst_offset = 0;
     for (int i = 3; i < nd; ++i) {
-      src_offset += t_src.get_overlap()[i] * tr_shape[i-1];
-      dst_offset += t_dst.get_overlap()[i] * tr_shape[i-1];
+      src_offset += t_src.get_head_overlap()[i] * tr_shape[i-1]; // TODO: check
+      dst_offset += t_dst.get_tail_overlap()[i] * tr_shape[i - 1];  // TODO: check
     }
     cudaMemcpy3DParms p;
     memset(&p, 0, sizeof(cudaMemcpy3DParms));
@@ -119,13 +119,15 @@ struct CopyLocalFunctor3D<DataType, CUDAAllocator, CUDAAllocator,
     p.kind = cudaMemcpyDefault;
     for (size_t i = 0; i < num_chunks; ++i) {
       p.srcPos = make_cudaPos(
-          t_src.get_overlap()[0] * sizeof(DataType),
-          t_src.get_overlap()[1],
-          t_src.get_overlap()[2] + t_src.get_local_real_shape()[2] * (i + src_offset));
+          t_src.get_head_overlap()[0] * sizeof(DataType),
+          t_src.get_head_overlap()[1],
+          t_src.get_head_overlap()[2] + t_src.get_local_real_shape()[2] *
+                                            (i + src_offset));  // TODO: check
       p.dstPos = make_cudaPos(
-          t_dst.get_overlap()[0] * sizeof(DataType),
-          t_dst.get_overlap()[1],
-          t_dst.get_overlap()[2] + t_dst.get_local_real_shape()[2] * (i + dst_offset));
+          t_dst.get_head_overlap()[0] * sizeof(DataType),
+          t_dst.get_head_overlap()[1],
+          t_dst.get_head_overlap()[2] + t_dst.get_local_real_shape()[2] *
+                                            (i + dst_offset));  // TODO: check
       // util::MPIPrintStreamDebug() << "memcpy3d param: " << p << "\n";
       DISTCONV_CHECK_CUDA(cudaMemcpy3DAsync(&p, get_cuda_stream(stream)));
     }

@@ -359,7 +359,7 @@ class Tensor: public AbstractTensor {
   Shape get_remote_real_shape(const IndexVector &rank_idx) const {
     auto rs = get_remote_shape(rank_idx);
     for (int i = 0; i < get_num_dims(); ++i) {
-      rs[i] += get_overlap()[i] * 2;
+      rs[i] += get_head_overlap()[i] + get_tail_overlap()[i];
     }
     return rs;
   }
@@ -495,16 +495,28 @@ class Tensor: public AbstractTensor {
   }
 
   // REFACTORING: Replace this with get_halo_width
-  const IntVector &get_overlap() const {
-    return get_distribution().get_overlap();
+  const IntVector &get_head_overlap() const {
+    return get_distribution().get_head_overlap();
   }
 
-  const IntVector &get_halo_width() const {
-    return get_distribution().get_overlap();
+  const IntVector &get_tail_overlap() const {
+    return get_distribution().get_tail_overlap();
   }
 
-  int get_halo_width(int dim) const {
-    return get_distribution().get_overlap(dim);
+  const IntVector &get_head_halo_width() const {
+    return get_distribution().get_head_overlap();
+  }
+
+  const IntVector &get_tail_halo_width() const {
+    return get_distribution().get_tail_overlap();
+  }
+
+  int get_head_halo_width(int dim) const {
+    return get_distribution().get_head_overlap(dim);
+  }
+
+  int get_tail_halo_width(int dim) const {
+    return get_distribution().get_tail_overlap(dim);
   }
 
   void clear_halo(int dim,

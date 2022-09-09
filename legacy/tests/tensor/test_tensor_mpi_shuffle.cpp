@@ -242,7 +242,7 @@ int run_tests(const Shape &proc_dim,
     util::MPIRootPrintStreamInfo()
         << "Test: copy from sample-distributed tensor to spatially-distributed tensor with halo.";
     auto dist1 = get_sample_dist(shape, np);
-    auto dist2 = Distribution::make_overlapped_distribution(proc_dim, create_spatial_overlap());
+    auto dist2 = Distribution::make_overlapped_distribution(proc_dim, create_spatial_overlap(), create_spatial_overlap());
     util::MPIRootPrintStreamInfo() << "dist1 (" << dist1
                                    << ") to dist2 (" << dist2 << ")";
     assert_always((test_copy_shuffle<ND, TensorMPI, TensorMPI>(

@@ -149,7 +149,7 @@ int main(int argc, char *argv[]) {
   Shape src2_shape({32, 32, 32, 3, np});
 
   auto overlapped_dist = Distribution::make_overlapped_distribution(
-      {1, 2, 2, 1, np/4}, {0, 1, 1, 0, 0});
+      {1, 2, 2, 1, np / 4}, {0, 1, 1, 0, 0}, {0, 1, 1, 0, 0});
   auto non_overlapped_dist = Distribution::make_distribution(
       {1, 2, 2, 1, np/4});
   assert_always((np % 4) == 0 && (np / 4 > 0));

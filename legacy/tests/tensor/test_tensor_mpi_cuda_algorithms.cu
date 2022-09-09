@@ -20,19 +20,16 @@ inline LocaleMPI get_locale() {
 }
 
 template <typename DataType>
-__global__ void init_tensor(DataType *buf,
-                            Array<3> local_shape,
-                            Array<3> halo,
-                            index_t pitch,
-                            Array<3> global_shape,
+__global__ void init_tensor(DataType *buf, Array<3> local_shape, Array<3> head_halo,
+                            Array<3> tail_halo, index_t pitch, Array<3> global_shape,
                             Array<3> global_index_base) {
-  Array<3> local_real_shape = local_shape + halo * 2;
+  Array<3> local_real_shape = local_shape + head_halo + tail_halo;
   for (index_t k = blockIdx.x; k < local_shape[2]; k += gridDim.x) {
     for (index_t j = 0; j < local_shape[1]; ++j) {
       for (index_t i = threadIdx.x; i < local_shape[0]; i += blockDim.x) {
         Array<3> local_idx = {i, j, k};
         size_t local_offset = get_offset(
-            local_idx + halo, local_real_shape, pitch);
+            local_idx + head_halo, local_real_shape, pitch); // TODO: check
         Array<3> global_idx = global_index_base + local_idx;
         size_t global_offset = get_offset(
             global_idx, global_shape);
@@ -43,21 +40,17 @@ __global__ void init_tensor(DataType *buf,
 }
 
 template <typename DataType, typename UnaryFunction>
-__global__ void check_tensor(const DataType *buf,
-                             Array<3> local_shape,
-                             Array<3> halo,
-                             index_t pitch,
-                             Array<3> global_shape,
-                             Array<3> global_index_base,
-                             UnaryFunction op,
-                             int *error_counter) {
-  Array<3> local_real_shape = local_shape + halo * 2;
+__global__ void check_tensor(const DataType *buf, Array<3> local_shape,
+                             Array<3> head_halo, Array<3> tail_halo, index_t pitch,
+                             Array<3> global_shape, Array<3> global_index_base,
+                             UnaryFunction op, int *error_counter) {
+  Array<3> local_real_shape = local_shape + head_halo + tail_halo;
   for (index_t k = blockIdx.x; k < local_shape[2]; k += gridDim.x) {
     for (index_t j = 0; j < local_shape[1]; ++j) {
       for (index_t i = threadIdx.x; i < local_shape[0]; i += blockDim.x) {
         Array<3> local_idx = {i, j, k};
-        size_t local_offset = get_offset(
-            local_idx + halo, local_real_shape, pitch);
+        size_t local_offset =
+            get_offset(local_idx + head_halo, local_real_shape, pitch); // TODO: check
         Array<3> global_idx = global_index_base + local_idx;
         int global_offset = get_offset(global_idx, global_shape);
         DataType ref = op(global_offset);
@@ -72,7 +65,6 @@ __global__ void check_tensor(const DataType *buf,
     }
   }
 }
-
 
 template <typename DataType>
 struct times2_functor {
@@ -110,11 +102,8 @@ inline int test_transform(const Shape &shape,
                         << ", global offset: " << t.get_global_index()
                         << ", pitch: " << pitch;
 
-  init_tensor<<<4, 4>>>(buf,
-                        t.get_local_shape(),
-                        dist.get_overlap(),
-                        t.get_pitch(),
-                        t.get_shape(),
+  init_tensor<<<4, 4>>>(buf, t.get_local_shape(), dist.get_head_overlap(),
+                        dist.get_tail_overlap(), t.get_pitch(), t.get_shape(),
                         t.get_global_index());
   cudaDeviceSynchronize();
 
@@ -129,14 +118,10 @@ inline int test_transform(const Shape &shape,
   cudaMalloc(&error_counter_d, sizeof(int));
   cudaMemcpy(error_counter_d, &error_counter, sizeof(int),
              cudaMemcpyDefault);
-  check_tensor<<<1, 1>>>(buf,
-                         t.get_local_shape(),
-                         dist.get_overlap(),
-                         t.get_pitch(),
-                         t.get_shape(),
-                         t.get_global_index(),
-                         times2_functor<typename TensorType::data_type>(),
-                         error_counter_d);
+  check_tensor<<<1, 1>>>(
+      buf, t.get_local_shape(), dist.get_head_overlap(), dist.get_tail_overlap(),
+      t.get_pitch(), t.get_shape(), t.get_global_index(),
+      times2_functor<typename TensorType::data_type>(), error_counter_d);
 
   cudaMemcpy(&error_counter, error_counter_d, sizeof(int),
              cudaMemcpyDefault);
@@ -146,12 +131,9 @@ inline int test_transform(const Shape &shape,
   MPIRootPrintStreamInfo() << "Transform with times2_lambda completed.";
 
   Transform(t, t2, copy_functor<typename TensorType::data_type>());
-  check_tensor<<<1, 1>>>(t2.get_buffer(),
-                         t2.get_local_shape(),
-                         dist.get_overlap(),
-                         t2.get_pitch(),
-                         t2.get_shape(),
-                         t2.get_global_index(),
+  check_tensor<<<1, 1>>>(t2.get_buffer(), t2.get_local_shape(),
+                         dist.get_head_overlap(), dist.get_tail_overlap(),
+                         t2.get_pitch(), t2.get_shape(), t2.get_global_index(),
                          times2_functor<typename TensorType::data_type>(),
                          error_counter_d);
   cudaMemcpy(&error_counter, error_counter_d, sizeof(int),
@@ -166,12 +148,9 @@ inline int test_transform(const Shape &shape,
                                    typename TensorTypeLong::data_type &y) {
                       y = static_cast<typename TensorTypeLong::data_type>(x);
                     });
-  check_tensor<<<1, 1>>>(t3.get_buffer(),
-                         t3.get_local_shape(),
-                         dist.get_overlap(),
-                         t3.get_pitch(),
-                         t3.get_shape(),
-                         t3.get_global_index(),
+  check_tensor<<<1, 1>>>(t3.get_buffer(), t3.get_local_shape(),
+                         dist.get_head_overlap(), dist.get_tail_overlap(),
+                         t3.get_pitch(), t3.get_shape(), t3.get_global_index(),
                          times2_functor<typename TensorTypeLong::data_type>(),
                          error_counter_d);
   cudaMemcpy(&error_counter, error_counter_d, sizeof(int),
@@ -212,11 +191,8 @@ inline int test_reduce(const Shape &shape,
                               << ", global offset: " << t.get_global_index()
                               << ", pitch: " << pitch;
 
-  init_tensor<<<4, 4>>>(buf,
-                        t.get_local_shape(),
-                        dist.get_overlap(),
-                        t.get_pitch(),
-                        t.get_shape(),
+  init_tensor<<<4, 4>>>(buf, t.get_local_shape(), dist.get_head_overlap(),
+                        dist.get_tail_overlap(), t.get_pitch(), t.get_shape(),
                         t.get_global_index());
   cudaDeviceSynchronize();
 
@@ -318,11 +294,8 @@ inline int test_transform_reduce(const Shape &shape,
   int *buf = t.get_buffer();
   size_t pitch = t.get_pitch();
 
-  init_tensor<<<4, 4>>>(buf,
-                        t.get_local_shape(),
-                        dist.get_overlap(),
-                        t.get_pitch(),
-                        t.get_shape(),
+  init_tensor<<<4, 4>>>(buf, t.get_local_shape(), dist.get_head_overlap(),
+                        dist.get_tail_overlap(), t.get_pitch(), t.get_shape(),
                         t.get_global_index());
   cudaDeviceSynchronize();
 
@@ -411,11 +384,8 @@ inline int test_transform_reduce2(const Shape &shape,
   int *buf = t.get_buffer();
   size_t pitch = t.get_pitch();
 
-  init_tensor<<<4, 4>>>(buf,
-                        t.get_local_shape(),
-                        dist.get_overlap(),
-                        t.get_pitch(),
-                        t.get_shape(),
+  init_tensor<<<4, 4>>>(buf, t.get_local_shape(), dist.get_head_overlap(),
+                        dist.get_tail_overlap(), t.get_pitch(), t.get_shape(),
                         t.get_global_index());
   cudaDeviceSynchronize();
 
@@ -538,7 +508,8 @@ int main(int argc, char *argv[]) {
   using DataType = int;
 
   using TensorMPI = Tensor<DataType, LocaleMPI, CUDAAllocator>;
-  auto dist = Distribution::make_overlapped_distribution({2, 2, np/4}, {1, 1, 0});
+  auto dist = Distribution::make_overlapped_distribution({2, 2, np / 4},
+                                                         {1, 1, 0}, {1, 1, 0});
   assert_always((np % 4) == 0 && (np / 4 > 0));
   Shape tensor_shape({4, 4, 4});
 

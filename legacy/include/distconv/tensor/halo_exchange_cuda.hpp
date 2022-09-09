@@ -10,6 +10,7 @@
 #include <Al.hpp>
 
 #include <memory>
+#include <algorithm>
 
 namespace distconv {
 namespace tensor {
@@ -94,10 +95,9 @@ class HaloExchange<DataType, CUDAAllocator, AlBackend> {
                         bool is_reverse,
                         bool skip_unpack,
                         HaloExchangeAccumOp op=HaloExchangeAccumOp::ID) {
-    exchange(m_tensor.get_halo_width(), m_tensor.get_halo_width(),
-             m_tensor.get_halo_width(), m_tensor.get_halo_width(),
-             comms, stream_main, rendezvous, sync_back,
-             is_reverse, skip_unpack, op);
+    exchange(m_tensor.get_tail_halo_width(), m_tensor.get_tail_halo_width(),
+             m_tensor.get_head_halo_width(), m_tensor.get_head_halo_width(), comms,
+             stream_main, rendezvous, sync_back, is_reverse, skip_unpack, op);
   }
   virtual void exchange(int dim,
                         int width_rhs_send, int width_rhs_recv,
@@ -114,10 +114,10 @@ class HaloExchange<DataType, CUDAAllocator, AlBackend> {
                         CommType &comm_lhs,
                         bool rendezvous, bool is_reverse, bool skip_unpack,
                         HaloExchangeAccumOp op=HaloExchangeAccumOp::ID) {
-    int width = m_tensor.get_halo_width(dim);
-    exchange(dim, width, width, width, width,
-             comm_rhs, comm_lhs, rendezvous, is_reverse,
-             skip_unpack, op);
+    int head_width = m_tensor.get_head_halo_width(dim);
+    int tail_width = m_tensor.get_tail_halo_width(dim);
+    exchange(dim, tail_width, tail_width, head_width, head_width, comm_rhs,
+             comm_lhs, rendezvous, is_reverse, skip_unpack, op);
   }
 
   void unpack(const IntVector &widths_rhs_recv,
@@ -155,7 +155,7 @@ class HaloExchange<DataType, CUDAAllocator, AlBackend> {
               bool sync_back,
               bool is_reverse,
               HaloExchangeAccumOp op=HaloExchangeAccumOp::ID) {
-    unpack(m_tensor.get_halo_width(), m_tensor.get_halo_width(), streams,
+    unpack(m_tensor.get_tail_halo_width(), m_tensor.get_head_halo_width(), streams,
            stream_main, sync_back, is_reverse, op);
   }
 
@@ -230,7 +230,9 @@ class HaloExchange<DataType, CUDAAllocator, AlBackend> {
   }
 
   size_t get_halo_size(int dim) const {
-    return get_halo_size(dim, m_tensor.get_distribution().get_overlap(dim));
+    return get_halo_size(dim,
+                        std::max(m_tensor.get_distribution().get_head_overlap(dim),
+                          m_tensor.get_distribution().get_tail_overlap(dim))); // TODO: check
   }
 
   virtual void *get_send_buffer(int dim, Side side) {
@@ -273,9 +275,10 @@ class HaloExchange<DataType, CUDAAllocator, AlBackend> {
   }
 
   bool is_exchange_required(int dim) {
-    int halo_width = m_tensor.get_halo_width(dim);
-    return is_exchange_required(dim, halo_width, halo_width,
-                                halo_width, halo_width);
+    int head_halo_width = m_tensor.get_head_halo_width(dim);
+    int tail_halo_width = m_tensor.get_tail_halo_width(dim);
+    return is_exchange_required(dim, tail_halo_width, tail_halo_width,
+                                head_halo_width, head_halo_width);
   }
 
   int find_peer_rank(int dim, Side side) {

@@ -346,7 +346,7 @@ class Convolution<cudnn::BackendCUDNN, DataType> {
         d_output, strides, dilations);
 
     setup_convolution_descriptor(
-        input.get_overlap(), filter.get_shape(),
+        input.get_head_overlap(), input.get_tail_overlap(), filter.get_shape(),
         pads, strides, dilations, num_groups,
         m_conv_fwd_d, m_conv_bwd_d, m_conv_bwd_filter_d);
     util::MPIPrintStreamDebug() << "Convolution fwd desc: "
@@ -852,7 +852,7 @@ class Convolution<cudnn::BackendCUDNN, DataType> {
       for (int dim = 0; dim < m_num_spatial_dims; ++dim) {
         const auto &dist = d_output.get_distribution();
         if (dist.is_distributed(dim) && dist.get_locale_shape()[dim] > 1 &&
-            dist.get_overlap(dim) > 0) {
+            (dist.get_head_overlap(dim) > 0 || dist.get_tail_overlap(dim) > 0)) {
           d_output.clear_halo(dim, m_be.get_stream());
         }
       }
@@ -2018,7 +2018,8 @@ class Convolution<cudnn::BackendCUDNN, DataType> {
         util::reverse(shape).data()));
   }
 
-  void setup_convolution_descriptor(const IntVector &overlap,
+  void setup_convolution_descriptor(const IntVector &head_overlap,
+                                    const IntVector &tail_overlap,
                                     const tensor::Shape &filter_shape,
                                     const int_vector &pads,
                                     const int_vector &strides,
@@ -2077,7 +2078,7 @@ class Convolution<cudnn::BackendCUDNN, DataType> {
     for (int i = 0; i < m_num_spatial_dims; ++i) {
       // when the input tensor is extended with halo, no padding is
       // necessary
-      if (overlap[i] > 0) {
+      if (head_overlap[i] > 0 || tail_overlap[i] > 0) {
         pads_fp[i] = 0;
       } else {
         // if overlap is zero, don't manipulate padding
@@ -2230,10 +2231,10 @@ class Convolution<cudnn::BackendCUDNN, DataType> {
           input.get_local_offset(m_halo_bwd_recv, true);
       m_output_boundary_offsets(dim, side) = output.get_local_offset();
     } else {
-      IndexVector input_boundary_idx = input.get_overlap() - m_halo_bwd_recv;
+      IndexVector input_boundary_idx = input.get_tail_overlap() - m_halo_bwd_recv; // TODO: check
       input_boundary_idx[dim] = input.get_local_shape()[dim]
           + get_input_halo_recv(dim, side)
-          - input_boundary_dim + input.get_overlap()[dim];
+          - input_boundary_dim + input.get_tail_overlap()[dim];
       m_input_boundary_offsets(dim, side) =
           input.get_local_offset(input_boundary_idx, true);
       IndexVector output_boundary_idx(m_num_dims, 0);

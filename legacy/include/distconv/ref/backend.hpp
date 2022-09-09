@@ -393,7 +393,7 @@ class Convolution<ref::Backend, DataType> {
   int_vector m_strides;
 
   bool has_halo(const tensor::Distribution &dist, int dim) {
-    return dist.is_distributed(dim) && dist.get_overlap(dim);
+    return dist.is_distributed(dim) && dist.get_head_overlap(dim) && dist.get_tail_overlap(dim);
   }
 
 };

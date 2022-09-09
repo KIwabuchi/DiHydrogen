@@ -169,10 +169,11 @@ void channel_sums_and_sqsums(int num_samples, const Tensor &input, Tensor &sums,
   // a split root.
   if (input.get_local_size() == 0 || !input.is_split_root()) return;
 
-  auto overlap = input.get_overlap();
+  auto head_overlap = input.get_head_overlap();
+  auto tail_overlap = input.get_tail_overlap();
   bool opt_eligible = true;
   for (int i = 0; i < ND - 3; ++i) {
-    if (overlap[i] != 0) {
+    if (head_overlap[i] != 0 && tail_overlap[i] != 0) {
       opt_eligible = false;
       break;
     }
@@ -600,10 +601,13 @@ void forward_all(const Tensor &input, Tensor &mean, Tensor &var,
 
   // Assumes halo can only be attached to the outermost spatial
   // dimension
-  auto overlap = input.get_overlap();
-  assert_eq(overlap[0], 0);
+  auto head_overlap = input.get_head_overlap();
+  auto tail_overlap = input.get_tail_overlap();
+  assert_eq(head_overlap[0], 0);
+  assert_eq(tail_overlap[0], 0);
   if (ND >= 5) {
-    assert_eq(overlap[1], 0);
+    assert_eq(head_overlap[1], 0);
+    assert_eq(tail_overlap[1], 0);
   }
 
   constexpr int block_size = 1024;
@@ -919,7 +923,9 @@ void backprop1(int num_samples, const TensorType &input,
     return;
   }
 
-  std::vector<IndexVector> overlaps = {input.get_overlap(), d_output.get_overlap()};
+  std::vector<IndexVector> overlaps = {input.get_head_overlap(), input.get_tail_overlap(),
+                                       d_output.get_head_overlap(),
+                                       d_output.get_tail_overlap()};
   bool opt_eligible = true;
   for (auto overlap: overlaps) {
     for (int i = 0; i < ND - 3; ++i) {

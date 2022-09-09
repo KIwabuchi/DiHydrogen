@@ -50,7 +50,7 @@ int test_view(const Shape &shape,
 
   local_shape = t_view.get_local_shape();
   const auto *view_buf = t_view.get_buffer();
-  assert_always(view_buf || local_shape.get_size() == 0);  
+  assert_always(view_buf || local_shape.get_size() == 0);
   for (index_t i = 0; i < local_shape[2]; ++i) {
     for (index_t j = 0; j < local_shape[1]; ++j) {
       for (index_t k = 0; k < local_shape[0]; ++k) {
@@ -251,7 +251,7 @@ int main(int argc, char *argv[]) {
   assert_always((np % 2) == 0 && np >= 2);
 
   auto dist = Distribution::make_overlapped_distribution(
-      {1, 2, np/2}, {0, 0, 1});
+      {1, 2, np/2}, {0, 0, 1}, {0, 0, 1});
 
   assert0(test_data_access<TensorMPI>(Shape({2, 2, 2}), dist));
   util::MPIRootPrintStreamInfo() << "test_data_access success";
@@ -278,7 +278,7 @@ int main(int argc, char *argv[]) {
   assert_always((np % 8) == 0 && np >= 8);
   using TensorMPI4 = Tensor<DataType, LocaleMPI, BaseAllocator>;
   auto dist4 = Distribution::make_overlapped_distribution(
-      Shape({2, 2, 2, np/8}), IntVector({1, 1, 0, 0}));
+      Shape({2, 2, 2, np/8}), IntVector({1, 1, 0, 0}), IntVector({1, 1, 0, 0}));
 
   assert0(test_alloc<TensorMPI4>(Shape({2, 2, 2, 2}), dist4));
   util::MPIRootPrintStreamInfo() << "test_alloc success";

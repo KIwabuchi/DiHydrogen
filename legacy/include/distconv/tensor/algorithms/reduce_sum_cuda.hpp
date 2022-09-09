@@ -113,7 +113,8 @@ struct ReduceSumFunctor {
                       dst_shape[i] == src.get_local_shape()[i]);
       }
       const auto src_strides = get_strides<ND>(local_reduction_shape,
-                                               src.get_overlap(),
+                                               src.get_head_overlap(),
+                                               src.get_tail_overlap(),
                                                src.get_pitch());
       const auto dst_strides = dst.get_strides();
       reduce_kernel<ND, DataType, UnaryFunction, block_size>
@@ -227,9 +228,9 @@ struct ReduceSumFunctor2 {
       //const auto src_shape = src.get_local_shape();
       const auto dst1_shape = dst1.get_local_shape();
       const auto dst2_shape = dst2.get_local_shape();
-      const auto src_strides = get_strides<ND>(local_reduction_shape,
-                                               src.get_overlap(),
-                                               src.get_pitch());
+      const auto src_strides =
+          get_strides<ND>(local_reduction_shape, src.get_head_overlap(),
+                          src.get_tail_overlap(), src.get_pitch());
       const auto dst1_strides = dst1.get_strides();
       const auto dst2_strides = dst2.get_strides();
       reduce_kernel2<ND, typename Tensor::data_type, UnaryFunction1,

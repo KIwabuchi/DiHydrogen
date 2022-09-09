@@ -260,7 +260,8 @@ Tensor create_input_tensor(const int_vector &shape,
                            MPI_Comm comm) {
   const int nd = shape.size();
   const int nsd = nd - 2;
-  IntVector overlap(nd, 0);
+  IntVector head_overlap(nd, 0); // TODO: implment
+  IntVector tail_overlap(nd, 0); // TODO: implment
   if (!deconv) {
     for (int i = 0; i < nsd; ++i) {
       if (locale_shape[i] == 1) continue;
@@ -268,7 +269,7 @@ Tensor create_input_tensor(const int_vector &shape,
           filter_dims[i], dilations[i]);
       if (df % 2) {
         int overlap_i = (df - 1) / 2;
-        overlap[i] = overlap_i;
+        head_overlap[i] = overlap_i;
       } else {
         // allows even-shaped filters when a stride of the equal size
         // is used
@@ -276,8 +277,9 @@ Tensor create_input_tensor(const int_vector &shape,
       }
     }
   }
+  tail_overlap = head_overlap; // TODO: Change
   auto dist = tensor::Distribution::make_overlapped_distribution(
-      tensor::Shape(locale_shape), overlap);
+      tensor::Shape(locale_shape), head_overlap, tail_overlap);
   tensor::LocaleMPI loc(comm);
   tensor::Shape division_shape(nd, 0);
   tensor::Shape division_block(nd, 0);
@@ -459,7 +461,8 @@ Tensor create_convolution_d_output_tensor(const Tensor &output,
   const int nd = output.get_num_dims();
   const int nsd = output.get_num_spatial_dims();
   auto dist = output.get_distribution();
-  IntVector overlap(nd, 0);
+  IntVector head_overlap(nd, 0); // TODO: implment
+  IntVector tail_overlap(nd, 0); // TODO: implment
 
   for (int i = 0; i < nsd; ++i) {
     int f = internal::get_dilated_filter_size(
@@ -467,10 +470,12 @@ Tensor create_convolution_d_output_tensor(const Tensor &output,
     index_t stencil = (f - 1) / 2;
     assert0((f - 1) % 2);
     if (dist.get_locale_shape()[i] > 1) {
-      overlap[i] = stencil;
+      head_overlap[i] = stencil;
     }
   }
-  dist.set_overlap(overlap);
+  tail_overlap = head_overlap; // TODO: Change
+  dist.set_head_overlap(head_overlap);
+  dist.set_tail_overlap(tail_overlap);
   tensor::Shape division_block(nd, 0);
 
   Tensor t = Tensor(output.get_shape(), output.get_locale(),
@@ -487,7 +492,6 @@ Tensor create_deconvolution_d_output_tensor(const Tensor &output,
   // This only works for the U-Net case
   const int nd = output.get_num_dims();
   auto dist = output.get_distribution();
-  IntVector overlap(nd, 0);
   tensor::Shape division_block(nd, 0);
   Tensor t = Tensor(output.get_shape(), output.get_locale(),
                     dist, output.get_local_shape(),

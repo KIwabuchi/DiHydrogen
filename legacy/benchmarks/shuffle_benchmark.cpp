@@ -105,7 +105,7 @@ int setup(const distconv_benchmark::BenchmarkConfig<NSD> &cfg,
     }
   }
   auto spatial_dist = tensor::Distribution::make_overlapped_distribution(
-      proc_shape, overlap);
+      proc_shape, overlap, overlap);
   auto sample_dist = make_strided_sample_distribution(
       shape.num_dims(), shape[-1], np);
 

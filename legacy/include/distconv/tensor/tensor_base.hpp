@@ -571,9 +571,10 @@ inline std::ostream &operator<<(std::ostream &os, const Region &r) {
 
 template <int ND>
 Array<ND> get_strides(const Array<ND> &logical_shape,
-                      const Array<ND> &overlap,
+                      const Array<ND> &head_overlap,
+                      const Array<ND> &tail_overlap,
                       index_t pitch) {
-  Array<ND> real_shape = logical_shape + overlap * 2;
+  Array<ND> real_shape = logical_shape + head_overlap + tail_overlap;
   Array<ND> strides(1);
   for (int i = 1; i < ND; ++i) {
     if (i == 1) {
@@ -587,16 +588,18 @@ Array<ND> get_strides(const Array<ND> &logical_shape,
 
 template <int ND>
 Array<ND> get_strides(const Array<ND> &logical_shape,
-                      const IntVector &overlap,
+                      const IntVector &head_overlap,
+                      const IntVector &tail_overlap,
                       index_t pitch) {
-  return get_strides(logical_shape, Array<ND>(overlap), pitch);
+  return get_strides(logical_shape, Array<ND>(head_overlap), Array<ND>(tail_overlap), pitch);
 }
 
 
 inline IndexVector get_strides(const Shape &logical_shape,
-                               const IntVector &overlap,
+                               const IntVector &head_overlap,
+                               const IntVector &tail_overlap,
                                index_t pitch) {
-  Shape real_shape = logical_shape + overlap * 2;
+  Shape real_shape = logical_shape + head_overlap + tail_overlap;
   real_shape[0] = pitch;
   IntVector strides;
   strides.push_back(1);

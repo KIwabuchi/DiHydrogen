@@ -390,7 +390,9 @@ void TensorMPICUDAShuffler<DataType>::shuffle(const DataType *src,
   DataType *recv_buf = get_dst_buf(is_forward, stream);
 
   if (send_buffer_size && is_src_split_root(is_forward)) {
-    if (get_src_overlap(is_forward).reduce_sum() == 0) {
+    if (get_src_head_overlap(is_forward).reduce_sum() +
+            get_src_tail_overlap(is_forward).reduce_sum() ==
+        0) {
       pack<DataType, true>(
           src, get_src_local_shape(is_forward),
           get_src_strides(is_forward),
@@ -432,7 +434,9 @@ void TensorMPICUDAShuffler<DataType>::shuffle(const DataType *src,
 
   // unpack
   if (recv_buffer_size && is_dst_split_root(is_forward)) {
-    if (get_dst_overlap(is_forward).reduce_sum() == 0) {
+    if (get_dst_head_overlap(is_forward).reduce_sum() +
+            get_dst_tail_overlap(is_forward).reduce_sum() ==
+        0) {
       unpack<DataType, true>(
           dst, get_dst_local_shape(is_forward),
           get_dst_strides(is_forward),

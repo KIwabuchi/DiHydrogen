@@ -142,7 +142,7 @@ class TensorImpl<Tensor<DataType, LocaleCUDA, Allocator>> {
                            bool idx_include_halo) const {
     auto real_idx = idx;
     if (!idx_include_halo) {
-      real_idx = real_idx + m_tensor->get_distribution().get_overlap();
+      real_idx = real_idx + m_tensor->get_distribution().get_head_overlap();
     }
     return get_offset(
         real_idx, get_local_real_shape(),
@@ -183,7 +183,7 @@ class TensorImpl<Tensor<DataType, LocaleCUDA, Allocator>> {
         // TODO: non-divisible case
         assert_always((tensor_shape[i] % locale_shape[i]) == 0);
         // Add halo regions
-        real_size_extra = dist.get_overlap(i) * 2;
+        real_size_extra = dist.get_head_overlap(i) + dist.get_tail_overlap(i);
       } else {
         proc_chunk_size = tensor_shape[i];
       }

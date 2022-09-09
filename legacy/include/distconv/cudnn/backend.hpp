@@ -40,9 +40,18 @@ inline void setup_tensor_descriptor(
   // set descriptor for input tensor
   // The size should include halo regions. Convolution will not be
   // done for the halo regions by disabling padding
-  IndexVector strides = tensor::get_strides(tensor.get_local_shape(),
-                                            tensor.get_halo_width(),
-                                            tensor.get_pitch());
+  // IndexVector strides =
+  //     tensor::get_strides(tensor.get_local_shape(), tensor.get_head_halo_width(),
+  //                         tensor.get_tail_halo_width(), tensor.get_pitch());
+  const auto real_shape = tensor.get_local_real_shape();
+  util::MPIPrintStreamDebug()
+      << "setup_tensor_descriptor. "
+      << "real_shape: " << real_shape;
+  IndexVector strides(real_shape.num_dims());
+  strides[0] = 1;
+  for (int i = 1; i < strides.length(); ++i) {
+    strides[i] = real_shape[i - 1] * strides[i - 1];
+  }
 
   util::MPIPrintStreamDebug()
       << "setup_tensor_descriptor. "
@@ -74,11 +83,12 @@ inline void setup_tensor_descriptor(
     const std::vector<bool> &include_halo_fwd,
     const std::vector<bool> &include_halo_bwd) {
   const int nd = tensor.get_num_dims();
-  auto overlap = tensor.get_overlap();
+  auto head_overlap = tensor.get_head_overlap();
+  auto tail_overlap = tensor.get_tail_overlap();
   IntVector halo_fwd(nd, 0), halo_bwd(nd, 0);
   for (int i = 0; i < nd; ++i) {
-    if (include_halo_bwd[i]) halo_bwd[i] = overlap[i];
-    if (include_halo_fwd[i]) halo_fwd[i] = overlap[i];
+    if (include_halo_bwd[i]) halo_bwd[i] = tail_overlap[i];
+    if (include_halo_fwd[i]) halo_fwd[i] = head_overlap[i];
   }
   setup_tensor_descriptor(desc, tensor, halo_fwd, halo_bwd);
 }

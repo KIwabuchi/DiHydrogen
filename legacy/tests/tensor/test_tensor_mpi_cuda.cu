@@ -20,19 +20,16 @@ inline LocaleMPI get_locale() {
   return loc;
 }
 
-__global__ void init_tensor(int *buf,
-                            Array<3> local_shape,
-                            Array<3> halo,
-                            index_t pitch,
-                            Array<3> global_shape,
+__global__ void init_tensor(int *buf, Array<3> local_shape, Array<3> head_halo,
+                            Array<3> tail_halo, index_t pitch, Array<3> global_shape,
                             Array<3> global_index_base) {
-  Array<3> local_real_shape = local_shape + halo * 2;
+  Array<3> local_real_shape = local_shape + head_halo + tail_halo;
   for (index_t k = blockIdx.x; k < local_shape[2]; k += gridDim.x) {
     for (index_t j = 0; j < local_shape[1]; ++j) {
       for (index_t i = threadIdx.x; i < local_shape[0]; i += blockDim.x) {
         Array<3> local_idx = {i, j, k};
-        size_t local_offset = get_offset(
-            local_idx + halo, local_real_shape, pitch);
+        size_t local_offset =
+            get_offset(local_idx + head_halo, local_real_shape, pitch); // TODO: check
         Array<3> global_idx = global_index_base + local_idx;
         size_t global_offset = get_offset(
             global_idx, global_shape);
@@ -42,20 +39,17 @@ __global__ void init_tensor(int *buf,
   }
 }
 
-__global__ void check_tensor(const int *buf,
-                             Array<3> local_shape,
-                             Array<3> halo,
-                             index_t pitch,
-                             Array<3> global_shape,
-                             Array<3> global_index_base,
+__global__ void check_tensor(const int *buf, Array<3> local_shape,
+                             Array<3> head_halo, Array<3> tail_halo, index_t pitch,
+                             Array<3> global_shape, Array<3> global_index_base,
                              int *error_counter) {
-  Array<3> local_real_shape = local_shape + halo * 2;
+  Array<3> local_real_shape = local_shape + head_halo + tail_halo;
   for (index_t k = blockIdx.x; k < local_shape[2]; k += gridDim.x) {
     for (index_t j = 0; j < local_shape[1]; ++j) {
       for (index_t i = threadIdx.x; i < local_shape[0]; i += blockDim.x) {
         Array<3> local_idx = {i, j, k};
-        size_t local_offset = get_offset(
-            local_idx + halo, local_real_shape, pitch);
+        size_t local_offset =
+            get_offset(local_idx + head_halo, local_real_shape, pitch); // todo: check
         Array<3> global_idx = global_index_base + local_idx;
         int global_offset = get_offset(global_idx, global_shape);
         int stored = buf[local_offset];
@@ -69,7 +63,6 @@ __global__ void check_tensor(const int *buf,
     }
   }
 }
-
 
 template <typename TensorType>
 inline int test_data_access_mpi_cuda(const Shape &shape,
@@ -92,11 +85,8 @@ inline int test_data_access_mpi_cuda(const Shape &shape,
                               << ", global offset: " << t.get_global_index()
                               << ", pitch: " << pitch;
 
-  init_tensor<<<4, 4>>>(buf,
-                        t.get_local_shape(),
-                        dist.get_overlap(),
-                        t.get_pitch(),
-                        t.get_shape(),
+  init_tensor<<<4, 4>>>(buf, t.get_local_shape(), dist.get_head_overlap(),
+                        dist.get_tail_overlap(), t.get_pitch(), t.get_shape(),
                         t.get_global_index());
   cudaDeviceSynchronize();
 
@@ -105,13 +95,9 @@ inline int test_data_access_mpi_cuda(const Shape &shape,
   cudaMalloc(&error_counter_d, sizeof(int));
   cudaMemcpy(error_counter_d, &error_counter, sizeof(int),
              cudaMemcpyDefault);
-  check_tensor<<<1, 1>>>(buf,
-                         t.get_local_shape(),
-                         dist.get_overlap(),
-                         t.get_pitch(),
-                         t.get_shape(),
-                         t.get_global_index(),
-                         error_counter_d);
+  check_tensor<<<1, 1>>>(buf, t.get_local_shape(), dist.get_head_overlap(),
+                         dist.get_tail_overlap(), t.get_pitch(), t.get_shape(),
+                         t.get_global_index(), error_counter_d);
 
   cudaMemcpy(&error_counter, error_counter_d, sizeof(int),
              cudaMemcpyDefault);
@@ -130,11 +116,8 @@ int test_view_raw_ptr(const Shape &shape,
   index_t base_offset = t.get_local_offset();
   int *buf = t.get_buffer();
   assert_always(buf);
-  init_tensor<<<4, 4>>>(buf,
-                        t.get_local_shape(),
-                        dist.get_overlap(),
-                        t.get_pitch(),
-                        t.get_shape(),
+  init_tensor<<<4, 4>>>(buf, t.get_local_shape(), dist.get_head_overlap(),
+                        dist.get_tail_overlap(), t.get_pitch(), t.get_shape(),
                         t.get_global_index());
   cudaDeviceSynchronize();
   using ConstTensorType = Tensor<typename TensorType::data_type,
@@ -148,13 +131,11 @@ int test_view_raw_ptr(const Shape &shape,
   cudaMalloc(&error_counter_d, sizeof(int));
   cudaMemcpy(error_counter_d, &error_counter, sizeof(int),
              cudaMemcpyDefault);
-  check_tensor<<<1, 1>>>(const_tensor_view.get_const_buffer(),
-                         const_tensor_view.get_local_shape(),
-                         dist.get_overlap(),
-                         const_tensor_view.get_pitch(),
-                         const_tensor_view.get_shape(),
-                         const_tensor_view.get_global_index(),
-                         error_counter_d);
+  check_tensor<<<1, 1>>>(
+      const_tensor_view.get_const_buffer(), const_tensor_view.get_local_shape(),
+      dist.get_head_overlap(), dist.get_tail_overlap(), const_tensor_view.get_pitch(),
+      const_tensor_view.get_shape(), const_tensor_view.get_global_index(),
+      error_counter_d);
   cudaMemcpy(&error_counter, error_counter_d, sizeof(int),
              cudaMemcpyDefault);
   assert0(error_counter);
@@ -162,11 +143,9 @@ int test_view_raw_ptr(const Shape &shape,
 }
 
 template <int ND, typename DataType>
-__global__ void check_clear_halo(const DataType *buf,
-                                 Array<ND> local_shape,
-                                 int dim, int halo,
-                                 DataType default_value,
-                                 int *error_counter) {
+__global__ void check_clear_halo(const DataType *buf, Array<ND> local_shape,
+                                 int dim, int head_halo, int tail_halo,
+                                 DataType default_value, int *error_counter) {
   const int tid = threadIdx.x;
   const int num_threads = blockDim.x;
   Array<ND> idx;
@@ -180,7 +159,7 @@ __global__ void check_clear_halo(const DataType *buf,
     idx[0] = x;
     int offset = get_offset(idx, local_shape);
     DataType v = buf[offset];
-    if (idx[dim] < halo || idx[dim] >= local_shape[dim] - halo) {
+    if (idx[dim] < head_halo || idx[dim] >= local_shape[dim] - head_halo) { // TODO: check
       if (v != 0) {
         atomicAdd(error_counter, 1);
       }
@@ -226,8 +205,9 @@ int test_clear_halo(const Shape &shape,
     if (num_dims == 4) {
       gsize.z = local_real_shape[3];
     }
-    check_clear_halo<ND, DataType><<<gsize, 128>>>(
-        buf, local_real_shape, i, dist.get_overlap(i), 1, error_counter_d);
+    check_clear_halo<ND, DataType>
+        <<<gsize, 128>>>(buf, local_real_shape, i, dist.get_head_overlap(i),
+                         dist.get_tail_overlap(i), 1, error_counter_d);
     cudaMemcpy(&error_counter, error_counter_d, sizeof(int), cudaMemcpyDefault);
     if (error_counter != 0) {
       util::MPIPrintStreamError() << error_counter << " errors at dimension ";
@@ -280,8 +260,10 @@ int main(int argc, char *argv[]) {
   using DataType = int;
 
   using TensorMPI = Tensor<DataType, LocaleMPI, CUDAAllocator>;
-  auto dist3 = Distribution::make_overlapped_distribution({2, 2, np/4}, {1, 1, 0});
-  auto dist4 = Distribution::make_overlapped_distribution({2, 2, 2, np/8}, {1, 1, 0, 0});
+  auto dist3 = Distribution::make_overlapped_distribution({2, 2, np / 4},
+                                                          {1, 1, 0}, {1, 1, 0});
+  auto dist4 = Distribution::make_overlapped_distribution(
+      {2, 2, 2, np / 8}, {1, 1, 0, 0}, {1, 1, 0, 0});
   assert_always((np % 8) == 0 && (np >= 8));
   //Distribution<3> dist({1, 1, np}, {1, 1, 0});
 
