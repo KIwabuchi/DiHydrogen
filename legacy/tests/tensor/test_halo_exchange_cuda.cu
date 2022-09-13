@@ -113,21 +113,21 @@ __global__ void check_tensor<4>(const DataType *buf, const Array<4> local_shape,
         for (index_t i = threadIdx.x; i < halo_shape[0]; i += blockDim.x) {
           for (int dir = 0; dir < 2; ++dir) {
             Array<4> local_idx = {i, j, k, l};
-            if (dir == 1) local_idx[dim] += local_shape[dim] + halo[dim];
+            if (dir == 1) local_idx[dim] += local_shape[dim] + head_halo[dim]; // todo: check
             size_t local_offset = get_offset(
                 local_idx, local_real_shape, pitch);
             bool skip = false;
             for (int d = 0; d < 4; ++d) {
-              if (global_index_base[d] + local_idx[d] < halo[d]) {
+              if (global_index_base[d] + local_idx[d] < head_halo[d]) { // todo: check
                 skip = true;
                 continue;
-              } else if (global_index_base[d] + local_idx[d] - halo[d] >= global_shape[d]) {
+              } else if (global_index_base[d] + local_idx[d] - head_halo[d] >= global_shape[d]) { // todo: check
                 skip = true;
                 continue;
               }
             }
             if (skip) continue;
-            auto global_idx = global_index_base + local_idx - halo;
+            auto global_idx = global_index_base + local_idx - head_halo;
             size_t global_offset = get_offset(global_idx, global_shape);
             auto stored = buf[local_offset];
             if (stored != global_offset) {
@@ -156,15 +156,16 @@ __global__ void check_tensor<4>(const DataType *buf, const Array<4> local_shape,
 template <>
 __global__ void check_tensor<5>(const DataType *buf,
                                 const Array<5> local_shape,
-                                const Array<5> halo,
+                                const Array<5> head_halo,
+                                const Array<5> tail_halo,
                                 index_t pitch,
                                 const Array<5> global_shape,
                                 const Array<5> global_index_base,
                                 int dim,
                                 int *error_counter) {
-  auto local_real_shape = local_shape + halo * 2;
+  auto local_real_shape = local_shape + head_halo + tail_halo;
   auto halo_shape = local_real_shape;
-  halo_shape[dim] = halo[dim];
+  halo_shape[dim] = head_halo[dim]; // todo: check
   for (index_t m = 0; m < halo_shape[4]; ++m) {
     for (index_t l = 0; l < halo_shape[3]; ++l) {
       for (index_t k = 0; k < halo_shape[2]; ++k) {
@@ -172,21 +173,21 @@ __global__ void check_tensor<5>(const DataType *buf,
           for (index_t i = threadIdx.x; i < halo_shape[0]; i += blockDim.x) {
             for (int dir = 0; dir < 2; ++dir) {
               Array<5> local_idx = {i, j, k, l, m};
-              if (dir == 1) local_idx[dim] += local_shape[dim] + halo[dim];
+              if (dir == 1) local_idx[dim] += local_shape[dim] + head_halo[dim]; // TODO: check
               size_t local_offset = get_offset(
                   local_idx, local_real_shape, pitch);
               bool skip = false;
               for (int d = 0; d < 5; ++d) {
-                if (global_index_base[d] + local_idx[d] < halo[d]) {
+                if (global_index_base[d] + local_idx[d] < head_halo[d]) { // TODO: check
                   skip = true;
                   continue;
-                } else if (global_index_base[d] + local_idx[d] - halo[d] >= global_shape[d]) {
+                } else if (global_index_base[d] + local_idx[d] - head_halo[d] >= global_shape[d]) { // TODO: check
                   skip = true;
                   continue;
                 }
               }
               if (skip) continue;
-              auto global_idx = global_index_base + local_idx - halo;
+              auto global_idx = global_index_base + local_idx - head_halo; // TODO: check
               size_t global_offset = get_offset(global_idx, global_shape);
               auto stored = buf[local_offset];
               if (stored != global_offset) {
@@ -219,7 +220,8 @@ __global__ void check_tensor<5>(const DataType *buf,
 template <int ND>
 __global__ void check_tensor_reverse(const DataType *buf,
                                      const Array<ND> local_shape,
-                                     const Array<ND> halo,
+                                     const Array<ND> head_halo,
+                                     const Array<ND> tail_halo,
                                      index_t pitch,
                                      const Array<ND> global_shape,
                                      const Array<ND> global_index_base,
@@ -229,15 +231,16 @@ __global__ void check_tensor_reverse(const DataType *buf,
 template <>
 __global__ void check_tensor_reverse<4>(const DataType *buf,
                                         const Array<4> local_shape,
-                                        const Array<4> halo,
+                                        const Array<4> head_halo,
+                                        const Array<4> tail_halo,
                                         index_t pitch,
                                         const Array<4> global_shape,
                                         const Array<4> global_index_base,
                                         int dim,
                                         int *error_counter) {
-  auto local_real_shape = local_shape + halo * 2;
+  auto local_real_shape = local_shape + head_halo + tail_halo;
   auto boundary_shape = local_shape;
-  boundary_shape[dim] = halo[dim];
+  boundary_shape[dim] = head_halo[dim]; // todo: check
   for (index_t l = 0; l < boundary_shape[3]; ++l) {
     for (index_t k = 0; k < boundary_shape[2]; ++k) {
       for (index_t j = 0; j < boundary_shape[1]; ++j) {
@@ -246,9 +249,9 @@ __global__ void check_tensor_reverse<4>(const DataType *buf,
           for (int dir = 0; dir < 2; ++dir) {
             Array<4> local_idx = {i, j, k, l};
             if (dir == 1) local_idx[dim] += local_shape[dim]
-                              - halo[dim];
+                              - head_halo[dim]; // todo: check
             size_t local_offset = get_offset(
-                local_idx + halo, local_real_shape, pitch);
+                local_idx + head_halo, local_real_shape, pitch); // todo: check
             auto global_idx = global_index_base + local_idx;
             size_t global_offset = get_offset(global_idx, global_shape);
             auto stored = buf[local_offset];
@@ -275,10 +278,10 @@ __global__ void check_tensor_reverse<4>(const DataType *buf,
             // Check the location is also fetched from the other size
             // of neighbor
             bool boundary_on_another_side = false;
-            if ((dir == 1 && local_idx[dim] < halo[dim] &&
+            if ((dir == 1 && local_idx[dim] < head_halo[dim] && // todo: check
                  global_index_base[dim] != 0) ||
                 (dir == 0 &&
-                 local_shape[dim] - local_idx[dim] <= halo[dim] &&
+                 local_shape[dim] - local_idx[dim] <= head_halo[dim] && // todo: check
                  global_index_base[dim] + local_shape[dim] <
                  global_shape[dim])) {
               ref += global_offset;
@@ -287,12 +290,12 @@ __global__ void check_tensor_reverse<4>(const DataType *buf,
             // dim is either 0 or 1. Check this index is located at
             // the boundary of the other spatial dimension
             int dim2 = dim ^ 1;
-            if (local_idx[dim2] < halo[dim2] &&
+            if (local_idx[dim2] < head_halo[dim2] && // todo: check
                 global_index_base[dim2] != 0) {
               ref += global_offset * 2;
               if (boundary_on_another_side) ref += global_offset;
             }
-            if (local_shape[dim2] - local_idx[dim2] <= halo[dim2] &&
+            if (local_shape[dim2] - local_idx[dim2] <= head_halo[dim2] && // todo: check
                 global_index_base[dim2] + local_shape[dim2]
                 < global_shape[dim2]) {
               ref += global_offset * 2;
@@ -320,15 +323,16 @@ __global__ void check_tensor_reverse<4>(const DataType *buf,
 template <>
 __global__ void check_tensor_reverse<5>(const DataType *buf,
                                         const Array<5> local_shape,
-                                        const Array<5> halo,
+                                        const Array<5> head_halo,
+                                        const Array<5> tail_halo,
                                         index_t pitch,
                                         const Array<5> global_shape,
                                         const Array<5> global_index_base,
                                         int dim,
                                         int *error_counter) {
-  auto local_real_shape = local_shape + halo * 2;
+  auto local_real_shape = local_shape + head_halo + tail_halo;
   auto boundary_shape = local_shape;
-  boundary_shape[dim] = halo[dim];
+  boundary_shape[dim] = head_halo[dim]; // todo: check
   for (index_t m = 0; m < boundary_shape[4]; ++m) {
     for (index_t l = 0; l < boundary_shape[3]; ++l) {
       for (index_t k = 0; k < boundary_shape[2]; ++k) {
@@ -338,9 +342,9 @@ __global__ void check_tensor_reverse<5>(const DataType *buf,
             for (int dir = 0; dir < 2; ++dir) {
               Array<5> local_idx = {i, j, k, l, m};
               if (dir == 1) local_idx[dim] += local_shape[dim]
-                                - halo[dim];
+                                - head_halo[dim]; // todo: check
               size_t local_offset = get_offset(
-                  local_idx + halo, local_real_shape, pitch);
+                  local_idx + head_halo, local_real_shape, pitch); // todo: check
               auto global_idx = global_index_base + local_idx;
               size_t global_offset = get_offset(global_idx, global_shape);
               auto stored = buf[local_offset];
@@ -370,10 +374,10 @@ __global__ void check_tensor_reverse<5>(const DataType *buf,
               // Check the location is also fetched from the other size
               // of neighbor
               bool boundary_on_another_side = false;
-              if ((dir == 1 && local_idx[dim] < halo[dim] &&
+              if ((dir == 1 && local_idx[dim] < head_halo[dim] && // todo: check
                    global_index_base[dim] != 0) ||
                   (dir == 0 &&
-                   local_shape[dim] - local_idx[dim] <= halo[dim] &&
+                   local_shape[dim] - local_idx[dim] <= head_halo[dim] && // todo: check
                    global_index_base[dim] + local_shape[dim] <
                    global_shape[dim])) {
                 ref += global_offset;
@@ -382,12 +386,12 @@ __global__ void check_tensor_reverse<5>(const DataType *buf,
               // dim is either 0 or 1. Check this index is located at
               // the boundary of the other spatial dimension
               int dim2 = dim ^ 1;
-              if (local_idx[dim2] < halo[dim2] &&
+              if (local_idx[dim2] < head_halo[dim2] && // todo: check
                   global_index_base[dim2] != 0) {
                 ref += global_offset * 2;
                 if (boundary_on_another_side) ref += global_offset;
               }
-              if (local_shape[dim2] - local_idx[dim2] <= halo[dim2] &&
+              if (local_shape[dim2] - local_idx[dim2] <= head_halo[dim2] && // todo: check
                   global_index_base[dim2] + local_shape[dim2]
                   < global_shape[dim2]) {
                 ref += global_offset * 2;

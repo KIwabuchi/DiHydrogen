@@ -223,8 +223,8 @@ void test(const Shape &proc_dim, const Shape &shape) {
     MPI_Barrier(MPI_COMM_WORLD);
     util::MPIRootPrintStreamInfo()
         << "Test: copy between same shape and distribution. no mpi involved.";
-    auto dist1 = Distribution::make_overlapped_distribution(proc_dim, overlap);
-    auto dist2 = Distribution::make_overlapped_distribution(proc_dim, overlap);
+    auto dist1 = Distribution::make_overlapped_distribution(proc_dim, overlap, overlap);
+    auto dist2 = Distribution::make_overlapped_distribution(proc_dim, overlap, overlap);
     assert0(test_copy_shuffle<ND, TensorMPI, TensorMPI>(shape, dist1, dist2));
     // reverse
     assert0(test_copy_shuffle<ND, TensorMPI, TensorMPI>(shape, dist2, dist1));
@@ -236,7 +236,7 @@ void test(const Shape &proc_dim, const Shape &shape) {
     MPI_Barrier(MPI_COMM_WORLD);
     util::MPIRootPrintStreamInfo()
         << "Test: copy from tensor with overlap to non-overlap tensor.";
-    auto dist1 = Distribution::make_overlapped_distribution(proc_dim, overlap);
+    auto dist1 = Distribution::make_overlapped_distribution(proc_dim, overlap, overlap);
     auto dist2 = Distribution::make_distribution(proc_dim);
     assert0(test_copy_shuffle<ND, TensorMPI, TensorMPI>(shape, dist1, dist2));
     assert0(test_copy_shuffle<ND, TensorMPI, TensorMPI>(shape, dist2, dist1));
@@ -249,7 +249,7 @@ void test(const Shape &proc_dim, const Shape &shape) {
     util::MPIRootPrintStreamInfo()
         << "Test: copy from sample-distributed tensor to spatially-distributed tensor.";
     auto dist1 = sample_dist;
-    auto dist2 = Distribution::make_overlapped_distribution(proc_dim, overlap);
+    auto dist2 = Distribution::make_overlapped_distribution(proc_dim, overlap, overlap);
     assert0(test_copy_shuffle<ND, TensorMPI, TensorMPI>(shape, dist1, dist2));
     util::MPIRootPrintStreamInfo() << "Testing reverse copy";
     // reverse
@@ -264,7 +264,7 @@ void test(const Shape &proc_dim, const Shape &shape) {
     util::MPIRootPrintStreamInfo()
         << "Test: copy from sample-distributed tensor to spatially-distributed tensor. non-divisible tensor sizes.";
     auto dist1 = sample_dist;
-    auto dist2 = Distribution::make_overlapped_distribution(proc_dim, overlap);
+    auto dist2 = Distribution::make_overlapped_distribution(proc_dim, overlap, overlap);
     Array<ND> shape;
     if (ND == 3) {
       shape = {7, 9, 4};
@@ -298,7 +298,7 @@ void test(const Shape &proc_dim, const Shape &shape) {
   {
     // local copy with different overlap and pitch
     auto dist1 = Distribution::make_distribution(proc_dim);
-    auto dist2 = Distribution::make_overlapped_distribution(proc_dim, overlap);
+    auto dist2 = Distribution::make_overlapped_distribution(proc_dim, overlap, overlap);
     using TensorMPIPitch = Tensor<ND, DataType, LocaleMPI, CUDAPitchedAllocator>;
     assert0(test_copy_shuffle<ND, TensorMPI, TensorMPIPitch>(shape, dist1, dist2));;
     // reverse

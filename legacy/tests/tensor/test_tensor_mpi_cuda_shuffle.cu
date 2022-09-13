@@ -34,7 +34,8 @@ inline LocaleMPI get_locale<LocaleMPI>() {
 template <int ND>
 __global__ void init_tensor(DataType *buf,
                             Array<ND> local_shape,
-                            Array<ND> halo,
+                            Array<ND> head_halo,
+                            Array<ND> tail_halo,
                             index_t pitch,
                             Array<ND> global_shape,
                             Array<ND> global_index_base);
@@ -43,18 +44,19 @@ __global__ void init_tensor(DataType *buf,
 template <>
 __global__ void init_tensor<4>(DataType *buf,
                                Array<4> local_shape,
-                               Array<4> halo,
+                               Array<4> head_halo,
+                               Array<4> tail_halo,
                                index_t pitch,
                                Array<4> global_shape,
                                Array<4> global_index_base) {
-  auto local_real_shape = local_shape + halo * 2;
+  auto local_real_shape = local_shape + head_halo + tail_halo;
   for (index_t l = blockIdx.y; l < local_shape[3]; l += gridDim.y) {
     for (index_t k = blockIdx.x; k < local_shape[2]; k += gridDim.x) {
       for (index_t j = 0; j < local_shape[1]; ++j) {
         for (index_t i = threadIdx.x; i < local_shape[0]; i += blockDim.x) {
           Array<4> local_idx = {i, j, k, l};
           size_t local_offset = get_offset(
-              local_idx + halo, local_real_shape, pitch);
+              local_idx + head_halo, local_real_shape, pitch); // todo: check
           auto global_idx = global_index_base + local_idx;
           size_t global_offset = get_offset(
               global_idx, global_shape);
@@ -68,11 +70,12 @@ __global__ void init_tensor<4>(DataType *buf,
 template <>
 __global__ void init_tensor<5>(DataType *buf,
                                Array<5> local_shape,
-                               Array<5> halo,
+                               Array<5> head_halo,
+                               Array<5> tail_halo,
                                index_t pitch,
                                Array<5> global_shape,
                                Array<5> global_index_base) {
-  auto local_real_shape = local_shape + halo * 2;
+  auto local_real_shape = local_shape + head_halo + tail_halo;
   for (index_t m = blockIdx.y; m < local_shape[4]; m += gridDim.y) {
     for (index_t l = blockIdx.x; l < local_shape[3]; l += gridDim.x) {
       for (index_t k = 0; k < local_shape[2]; ++k) {
@@ -80,7 +83,7 @@ __global__ void init_tensor<5>(DataType *buf,
           for (index_t i = threadIdx.x; i < local_shape[0]; i += blockDim.x) {
             Array<5> local_idx = {i, j, k, l, m};
             size_t local_offset = get_offset(
-                local_idx + halo, local_real_shape, pitch);
+                local_idx + head_halo, local_real_shape, pitch); // todo: check
             auto global_idx = global_index_base + local_idx;
             size_t global_offset = get_offset(
                 global_idx, global_shape);
@@ -95,7 +98,8 @@ __global__ void init_tensor<5>(DataType *buf,
 template <int ND>
 __global__ void check_tensor(const DataType *buf,
                              Array<ND> local_shape,
-                             Array<ND> halo,
+                             Array<ND> head_halo,
+                             Array<ND> tail_halo,
                              index_t pitch,
                              Array<ND> global_shape,
                              const Array<ND> global_index_base,
@@ -104,18 +108,19 @@ __global__ void check_tensor(const DataType *buf,
 template <>
 __global__ void check_tensor<3>(const DataType *buf,
                                 Array<3> local_shape,
-                                Array<3> halo,
+                                Array<3> head_halo,
+                                Array<3> tail_halo,
                                 index_t pitch,
                                 Array<3> global_shape,
                                 const Array<3> global_index_base,
                                 int *error_counter) {
-  Array<3> local_real_shape = local_shape + halo * 2;
+  Array<3> local_real_shape = local_shape + head_halo + tail_halo;
   for (index_t k = blockIdx.x; k < local_shape[2]; k += gridDim.x) {
     for (index_t j = 0; j < local_shape[1]; ++j) {
       for (index_t i = threadIdx.x; i < local_shape[0]; i += blockDim.x) {
         Array<3> local_idx = {i, j, k};
         size_t local_offset = get_offset(
-            local_idx + halo, local_real_shape, pitch);
+            local_idx + head_halo, local_real_shape, pitch); // todo: ckeck
         Array<3> global_idx = global_index_base + local_idx;
         int global_offset = get_offset(
             global_idx, global_shape);
@@ -136,19 +141,20 @@ __global__ void check_tensor<3>(const DataType *buf,
 template <>
 __global__ void check_tensor<4>(const DataType *buf,
                                 Array<4> local_shape,
-                                Array<4> halo,
+                                Array<4> head_halo,
+                                Array<4> tail_halo,
                                 index_t pitch,
                                 Array<4> global_shape,
                                 const Array<4> global_index_base,
                                 int *error_counter) {
-  auto local_real_shape = local_shape + halo * 2;
+  auto local_real_shape = local_shape + head_halo + tail_halo;
   for (index_t l = blockIdx.y; l < local_shape[3]; l += gridDim.y) {
     for (index_t k = blockIdx.x; k < local_shape[2]; k += gridDim.x) {
       for (index_t j = 0; j < local_shape[1]; ++j) {
         for (index_t i = threadIdx.x; i < local_shape[0]; i += blockDim.x) {
           Array<4> local_idx = {i, j, k, l};
           size_t local_offset = get_offset(
-              local_idx + halo, local_real_shape, pitch);
+              local_idx + head_halo, local_real_shape, pitch); // todo: check
           auto global_idx = global_index_base + local_idx;
           int global_offset = get_offset(global_idx, global_shape);
           auto stored = buf[local_offset];
@@ -173,12 +179,13 @@ __global__ void check_tensor<4>(const DataType *buf,
 template <>
 __global__ void check_tensor<5>(const DataType *buf,
                                 Array<5> local_shape,
-                                Array<5> halo,
+                                Array<5> head_halo,
+                                Array<5> tail_halo,
                                 index_t pitch,
                                 Array<5> global_shape,
                                 const Array<5> global_index_base,
                                 int *error_counter) {
-  auto local_real_shape = local_shape + halo * 2;
+  auto local_real_shape = local_shape + head_halo + tail_halo;
   for (index_t m = blockIdx.y; m < local_shape[4]; m += gridDim.y) {
     for (index_t l = blockIdx.x; l < local_shape[3]; l += gridDim.x) {
       for (index_t k = 0; k < local_shape[2]; ++k) {
@@ -186,7 +193,7 @@ __global__ void check_tensor<5>(const DataType *buf,
           for (index_t i = threadIdx.x; i < local_shape[0]; i += blockDim.x) {
             Array<5> local_idx = {i, j, k, l, m};
             size_t local_offset = get_offset(
-                local_idx + halo, local_real_shape, pitch);
+                local_idx + head_halo, local_real_shape, pitch); // todo: check
             auto global_idx = global_index_base + local_idx;
             int global_offset = get_offset(global_idx, global_shape);
             auto stored = buf[local_offset];
@@ -425,7 +432,7 @@ int run_tests(const Shape &proc_dim,
     util::MPIRootPrintStreamInfo()
         << "Test: copy from tensor with overlap to non-overlap tensor.";
     auto dist1 = Distribution::make_distribution(proc_dim);
-    auto dist2 = Distribution::make_overlapped_distribution(proc_dim, create_spatial_overlap());
+    auto dist2 = Distribution::make_overlapped_distribution(proc_dim, create_spatial_overlap(), create_spatial_overlap());
     assert_always((test_copy_shuffle<ND, TensorMPI, TensorMPI>(
         shape, dist1, dist2, method)) == 0);
     // reverse
@@ -466,7 +473,7 @@ int run_tests(const Shape &proc_dim,
     util::MPIRootPrintStreamInfo()
         << "Test: copy from sample-distributed tensor to spatially-distributed tensor with halo.";
     auto dist1 = get_sample_dist(shape, np);
-    auto dist2 = Distribution::make_overlapped_distribution(proc_dim, create_spatial_overlap());
+    auto dist2 = Distribution::make_overlapped_distribution(proc_dim, create_spatial_overlap(), create_spatial_overlap());
     bool skip = false;
 #ifdef DISTCONV_HAS_P2P
     if (method == ShuffleMethod::P2P && !is_p2p_capable(dist2)) {
@@ -493,7 +500,7 @@ int run_tests(const Shape &proc_dim,
     MPI_Barrier(MPI_COMM_WORLD);
     util::MPIRootPrintStreamInfo()
         << "Test: shrink distribution of the spatial dimensions.";
-    auto dist1 = Distribution::make_overlapped_distribution(proc_dim, create_spatial_overlap());
+    auto dist1 = Distribution::make_overlapped_distribution(proc_dim, create_spatial_overlap(), create_spatial_overlap());
     auto dist2 = dist1;
     auto shrunk_split_shape = dist2.get_split_shape();
     for(int i = 0; i < NSD; i++)
@@ -525,7 +532,7 @@ int run_tests(const Shape &proc_dim,
     auto split_shape = proc_dim;
     for(int i = 0; i < NSD; i++)
       split_shape[i] = 1;
-    Distribution dist1(proc_dim, split_shape, create_spatial_overlap(),
+    Distribution dist1(proc_dim, split_shape, create_spatial_overlap(), create_spatial_overlap(),
                        Shape(proc_dim.num_dims(), 0));
     bool skip = false;
 #ifdef DISTCONV_HAS_P2P

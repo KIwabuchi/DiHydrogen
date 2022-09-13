@@ -12,7 +12,8 @@ using namespace distconv::tensor;
 template <int ND>
 __global__ void init_tensor(int *buf,
                             Array<ND> local_shape,
-                            Array<ND> halo,
+                            Array<ND> head_halo,
+                            Array<ND> tail_halo,
                             index_t pitch,
                             Array<ND> global_shape,
                             Array<ND> global_index_base);
@@ -21,17 +22,18 @@ __global__ void init_tensor(int *buf,
 template <>
 __global__ void init_tensor<3>(int *buf,
                                Array<3> local_shape,
-                               Array<3> halo,
+                               Array<3> head_halo,
+                               Array<3> tail_halo,
                                index_t pitch,
                                Array<3> global_shape,
                                Array<3> global_index_base) {
-  Array<3> local_real_shape = local_shape + halo * 2;
+  Array<3> local_real_shape = local_shape + head_halo + tail_halo;
   for (index_t k = blockIdx.x; k < local_shape[2]; k += gridDim.x) {
     for (index_t j = 0; j < local_shape[1]; ++j) {
       for (index_t i = threadIdx.x; i < local_shape[0]; i += blockDim.x) {
         Array<3> local_idx = {i, j, k};
         size_t local_offset = get_offset(
-            local_idx + halo, local_real_shape, pitch);
+            local_idx + head_halo, local_real_shape, pitch); // todo: check
         Array<3> global_idx = global_index_base + local_idx;
         size_t global_offset = get_offset(
             global_idx, global_shape);
@@ -44,18 +46,19 @@ __global__ void init_tensor<3>(int *buf,
 template <>
 __global__ void init_tensor<4>(int *buf,
                                Array<4> local_shape,
-                               Array<4> halo,
+                               Array<4> head_halo,
+                               Array<4> tail_halo,
                                index_t pitch,
                                Array<4> global_shape,
                                Array<4> global_index_base) {
-  Array<4> local_real_shape = local_shape + halo * 2;
+  Array<4> local_real_shape = local_shape + head_halo + tail_halo;
   for (index_t l = blockIdx.y; l < local_shape[3]; l += gridDim.y) {
     for (index_t k = blockIdx.x; k < local_shape[2]; k += gridDim.x) {
       for (index_t j = 0; j < local_shape[1]; ++j) {
         for (index_t i = threadIdx.x; i < local_shape[0]; i += blockDim.x) {
           Array<4> local_idx = {i, j, k, l};
           size_t local_offset = get_offset(
-              local_idx + halo, local_real_shape, pitch);
+              local_idx + head_halo, local_real_shape, pitch); // todo: check
           Array<4> global_idx = global_index_base + local_idx;
           size_t global_offset = get_offset(
               global_idx, global_shape);
@@ -69,7 +72,8 @@ __global__ void init_tensor<4>(int *buf,
 template <int ND>
 __global__ void check_tensor(const int *buf,
                              Array<ND> local_shape,
-                             Array<ND> halo,
+                             Array<ND> head_halo,
+                             Array<ND> tail_halo,
                              index_t pitch,
                              Array<ND> global_shape,
                              const Array<ND> global_index_base,
@@ -78,18 +82,19 @@ __global__ void check_tensor(const int *buf,
 template <>
 __global__ void check_tensor<3>(const int *buf,
                                 Array<3> local_shape,
-                                Array<3> halo,
+                                Array<3> head_halo,
+                                Array<3> tail_halo,
                                 index_t pitch,
                                 Array<3> global_shape,
                                 const Array<3> global_index_base,
                                 int *error_counter) {
-  Array<3> local_real_shape = local_shape + halo * 2;
+  Array<3> local_real_shape = local_shape + head_halo + tail_halo;
   for (index_t k = blockIdx.x; k < local_shape[2]; k += gridDim.x) {
     for (index_t j = 0; j < local_shape[1]; ++j) {
       for (index_t i = threadIdx.x; i < local_shape[0]; i += blockDim.x) {
         Array<3> local_idx = {i, j, k};
         size_t local_offset = get_offset(
-            local_idx + halo, local_real_shape, pitch);
+            local_idx + head_halo, local_real_shape, pitch); // todo: check
         Array<3> global_idx = global_index_base + local_idx;
         int global_offset = get_offset(
             global_idx, global_shape);
@@ -118,19 +123,20 @@ __global__ void check_tensor<3>(const int *buf,
 template <>
 __global__ void check_tensor<4>(const int *buf,
                                 Array<4> local_shape,
-                                Array<4> halo,
+                                Array<4> head_halo,
+                                Array<4> tail_halo,
                                 index_t pitch,
                                 Array<4> global_shape,
                                 const Array<4> global_index_base,
                                 int *error_counter) {
-  Array<4> local_real_shape = local_shape + halo * 2;
+  Array<4> local_real_shape = local_shape + head_halo + tail_halo;
   for (index_t l = blockIdx.y; l < local_shape[3]; l += gridDim.y) {
     for (index_t k = blockIdx.x; k < local_shape[2]; k += gridDim.x) {
       for (index_t j = 0; j < local_shape[1]; ++j) {
         for (index_t i = threadIdx.x; i < local_shape[0]; i += blockDim.x) {
           Array<4> local_idx = {i, j, k, l};
           size_t local_offset = get_offset(
-              local_idx + halo, local_real_shape, pitch);
+              local_idx + head_halo, local_real_shape, pitch); // todo: check
           Array<4> global_idx = global_index_base + local_idx;
           int global_offset = get_offset(
               global_idx, global_shape);
